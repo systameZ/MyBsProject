@@ -1,0 +1,314 @@
+{% extends 'base.html' %}
+
+{% block linkcss %}
+<link rel="stylesheet" type="text/css" href="/static/css/dataTables.bootstrap.min.css">
+<style>
+	.no-gutter{
+		margin: 0px;
+	}
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="right_col" role="main">
+	<div class="">
+		<div class="clearfix"></div>
+		<div class="row">
+			<div class="col-md-12 col-sm-12 col-xs-12">
+				<div class="x_panel">
+					<div class="x_title">
+						<h2>授权主控</h2>
+						<ul class="nav navbar-right panel_toolbox">
+							<li><a class="collapse-link"><i class="fa fa-chevron-up"></i></a>
+							</li>
+						</ul>
+						<div class="clearfix"></div>
+					</div>
+					<div class="x_content">
+						<div class="form-group">
+							<label class="control-label col-md-3 col-sm-3 col-xs-4 text-right no-gutter"><h4>选择主控:</h4></label>
+							<div class="col-md-6 col-sm-6 col-xs-6">
+								<select id="select_host" class="select2_single form-control" tabindex="-1">
+									<option></option>
+									{% for each in posts.masters %}
+									<option value="{{each.host}}">{{each.master_host}}：{{each.master_port}}</option>
+									{% endfor %}
+								</select>
+							</div>
+							<div class="col-md-3 col-sm-3 col-xs-2"> 
+								<a class="btn btn-info" id='select_btn'>确定</a>
+							</div>
+
+						</div>
+
+					</div>
+				</div>
+
+
+			</div>
+
+			<div class="col-md-12 col-sm-12 col-xs-12">
+				<div class="x_panel">
+					<div class="x_title">
+						<h2>已授权主机 </h2>
+						<ul class="nav navbar-right panel_toolbox">
+							<li><a class="collapse-link"><i class="fa fa-chevron-up"></i></a>
+							</li>
+						</ul>
+						<div class="clearfix"></div>
+					</div>
+					<div class="info">
+						<a class="btn btn-info btn-sm" data-original-title="响应时间可能较久！" data-toggle="tooltip" data-placement="right" href="#">全部取消授权</a>
+					</div>
+					<div class="x_content">
+						<!-- <div class="ln_solid"></div> -->
+						<table id="datatable_auth" class="table table-striped table-bordered">
+							<thead>
+								<tr>
+									<th>主机</th>
+									<th>所属主控</th>
+									<th>状态</th>
+									<th>刷新时间</th>
+									<th>操作</th>
+								</tr>
+							</thead>
+							<tbody id="auth_content">
+								
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+
+
+			<div class="col-md-12 col-sm-12 col-xs-12">
+				<div class="x_panel">
+					<div class="x_title">
+						<h2>未授权主机 </h2>
+						<ul class="nav navbar-right panel_toolbox">
+							<li><a class="collapse-link"><i class="fa fa-chevron-up"></i></a>
+							</li>
+						</ul>
+						<div class="clearfix"></div>
+					</div>
+					<div class="info">
+						<a class="btn btn-info btn-sm" data-original-title="响应时间可能较久！" data-toggle="tooltip" data-placement="right" href="#">全部授权</a>
+					</div>
+					<div class="x_content">
+						<!-- <div class="ln_solid"></div> -->
+						<table id="datatable_no_auth" class="table table-striped table-bordered">
+							<thead>
+								<tr>
+									<th>主机</th>
+									<th>所属主控</th>
+									<th>刷新时间</th>
+									<th>操作</th>
+								</tr>
+							</thead>
+							<tbody id="no_auth_content">
+
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+
+
+		</div>
+		
+
+		
+
+	</div>
+
+
+
+</div>
+
+<div id="modal_show" class="modal fade bs-example-modal-sm" tabindex="-1" role="dialog" aria-hidden="true" style="display: none;">
+	<div class="modal-dialog modal-sm">
+		<div class="modal-content">
+
+			<div class="modal-header">
+				<button id="close_dialog" type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span>
+				</button>
+				<h4 class="modal-title" id="myModalLabel2">Modal title</h4>
+			</div>
+			<div id="content_dialog" class="modal-body">
+
+			</div>
+			<div class="modal-footer">
+				<button id="ok_dialog" type="button" class="btn btn-default" data-dismiss="modal">确认</button>
+			</div>
+
+		</div>
+	</div>
+</div>
+
+
+</div>
+</div>
+
+{% endblock %}
+{% block js %}
+<script src="/static/js/jquery.dataTables.min.js"></script>
+<script src="/static/js/dataTables.bootstrap.min.js"></script>
+
+<script type="text/javascript">
+	$(document).ready(
+		function(){
+
+			var dt_auth=$('#datatable_auth').DataTable({
+												"processing": false,//加载的过渡效果取消
+									            "serverSide": false,//服务端处理取消，使用下面ajax则需要开启
+									             // "ajax" : {},
+									            "data":[],
+									            "columns": [//设置每一列的数据对应的绑定数据时的列名
+									            	
+									                {"data": "minion_acc_host"},//defalut防止无数据报错
+									                {"data": "minion_acc_master"},
+									                {"data": "minion_acc_stat"},
+									                {"data": "minion_acc_time"}
+									            ],
+									            "columnDefs": [//添加功能按钮
+									                {
+									                    "targets": [4],
+									                    "data": "minion_acc_host",
+									                    "render": function(data, type, full) {
+									                        return '\
+									                        		<a class="btn btn-info btn-sm" name="edit_{0}">\
+																		取消授权\
+																	</a>\
+																	'.format(data)
+									                    }
+									                }
+									            ],
+									            "fnInitComplete": function() {//数据绑定完成重新计算列和行的大小，否则会出现不再自适应的状况
+										                this.fnAdjustColumnSizing(true);
+										                },
+										                
+											});
+
+			var dt_no_auth=$('#datatable_no_auth').DataTable({
+												"processing": false,//加载的过渡效果取消
+									            "serverSide": false,//服务端处理取消，使用下面ajax则需要开启
+									             // "ajax" : {},
+									            "data":[],
+									            "columns": [//设置每一列的数据对应的绑定数据时的列名
+									            	
+									                {"data": "minion_una_host"},//defalut防止无数据报错
+									                {"data": "minion_una_master"},
+									                {"data": "minion_una_time"}
+									            ],
+									            "columnDefs": [//添加功能按钮
+									                {
+									                    "targets": [3],
+									                    "data": "minion_una_host",
+									                    "render": function(data, type, full) {
+									                        return '\
+									                        		<a class="btn btn-info btn-sm" name="no_edit_{0}">\
+																		授权\
+																	</a>\
+																	'.format(data)
+									                    }
+									                }
+									            ],
+									            "fnInitComplete": function() {//数据绑定完成重新计算列和行的大小，否则会出现不再自适应的状况
+										                this.fnAdjustColumnSizing(true);
+										                },
+										                
+											});	
+
+
+			String.prototype.format = function(args) {
+						    var result = this;
+						    if (arguments.length < 1) {
+						        return result;
+						    }
+						    var data = arguments;        
+						    if (arguments.length == 1 && typeof (args) == "object") {
+						        data = args;
+						    }
+						    for (var key in data) {
+						        var value = data[key];
+						        if (undefined != value) {
+						            result = result.replace("{" + key + "}", value);
+						        }
+						    }
+						    return result;
+						}
+
+			$.ajaxSetup({
+				data: {csrfmiddlewaretoken: '{{ csrf_token }}' },
+			});
+
+			function show_dialog(tittle,content){
+				$('#modal_show').attr({
+					'class':'modal fade bs-example-modal-sm in',
+					'style':'display:block;padding-right16px',
+				});
+				$('#myModalLabel2').html(tittle);
+				$('#content_dialog').html(content);
+
+			}
+
+			function hide_dialog(){
+				$('#modal_show').attr({
+					'class':'modal fade bs-example-modal-sm ',
+					'style':'display:none;',
+				});
+				$('#myModalLabel2').html("");
+				$('#content_dialog').html("");
+			}
+
+			$('#close_dialog').click(function(){
+				hide_dialog();
+			});
+
+			$('#ok_dialog').click(function(){
+				hide_dialog();
+			});	
+
+			$('#select_btn').click(function (){
+				select_content=$('#select_host option:selected').text().split('：')[0]
+				if ( select_content != '' ){
+					$.ajax({
+						type:'POST',
+						url:"{% url 'minion_auth' %}",
+						data:{
+							'select_master_host':select_content,
+							'type':'list_all'
+						},
+						success:function(results){
+							if (results['data']){
+								show_dialog('提示',results['data']);
+							}
+							else{
+
+								if (results['minion_acc'].length>0){
+									dt_auth.clear().draw();//清除整个表
+									dt_auth.rows.add(results['minion_acc']['data']).draw();//绑定数据
+
+								}
+
+								if (results['minion_una']){
+																
+									dt_no_auth.clear().draw();//清除整个表
+									dt_no_auth.rows.add(results['minion_una']['data']).draw();//绑定数据
+
+								}
+							}
+
+						}
+					});
+
+				}
+
+				
+			});
+		});
+	</script>
+	{% endblock %}
+
+

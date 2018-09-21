@@ -1,0 +1,445 @@
+﻿参考博客：https://www.cnblogs.com/xiewenming/p/7716660.html
+
+salt-api是salt推出的，基于https的api接口
+
+安装
+	yum -y install salt-api
+
+检查cheryy
+	rpm -qa |grep  cherry
+
+安装Pyopenssl
+	yum install pyOpenSSL
+
+自签名证书，生产环境我们可以购买证书
+	salt-call --local tls.create_self_signed_cert
+	有版本提示信息的时候可以忽略
+
+写配置
+	这里使用某个开源项目里的写法
+	cat > /etc/salt/master <<EOF
+	interface: 0.0.0.0
+
+	external_auth:
+	  pam:
+		saltapi:
+		  - .*
+		  - '@wheel'
+		  - '@runner'
+		  - '@jobs'
+
+	rest_cherrypy:
+	  port: 8000
+	  ssl_crt: /etc/pki/tls/certs/localhost.crt
+	  ssl_key: /etc/pki/tls/certs/localhost.key
+
+	file_roots:
+	  base:
+		- /data/wwwroot/soms/media/salt
+
+	file_recv: True
+
+	include: /data/wwwroot/soms/saltconfig/*.conf
+	EOF
+	
+创建用户
+	useradd -M -s /sbin/nologin saltapi 
+	-M不创建Home目录
+	echo "saltapi" | passwd saltapi --stdin
+	设置密码
+	
+启动
+	systemctl start salt-master salt-api 
+	地址和端口为上方配置的
+
+验证login登陆，获取token字符串
+	curl -sSk https://localhost:8000/login -H 'Accept: application/x-yaml' -d username=saltapi -d password=password -d eauth=pam
+	如果没问题的话会返回一个token
+
+通过api执行test.ping测试连通性
+	curl -sSk https://127.0.0.1:8080 \
+	>     -H 'Accept: application/x-yaml' \
+	>     -H 'X-Auth-Token: bbbe92378d8d2def5fe83f4375cd46d620de7e7f'\
+	>     -d client=local \
+	>     -d tgt='*' \
+	>     -d fun=test.ping
+
+key状态：
+    salt-key -L查看所有
+    四种状态：
+        Accepted Keys:（已经接受的）
+        Denied Keys:(未被允许的)
+        Unaccepted Keys:(未接受的)
+        Rejected Keys:(拒绝的)
+
+	
+问题：
+		1.salt-api必须使用https，生产环境建议使用可信证书
+
+		2.当salt-api服务重启后原token失效
+
+		3.centos7:
+		        防火墙没有关闭，CentOS 7的防火墙默认是firewall而不是之前的iptables，所以需要确定
+                防火墙是否已经关闭，如果没有安装iptables的话，只需要通过systemctl stop firewalld.service
+                和systemctl disable firewalld.service关闭，前者是关闭firewall防火墙，后者是禁止开机启动，
+                然后通过firewall-cmd –state可以查看防火墙状态（关闭显示notrunning，开启显示running）。
+                可以使用systemctl stop iptables.service关闭iptables防火墙。这里我把firewall关闭了，但是，
+                但是，还是不行！发现端口还是telnet不通。
+
+	
+----------以下为参考用法------------------
+十三，执行cmd.run
+复制代码
+[root@linux-node1 master.d]# curl -sSk https://192.168.56.11:8000 \
+>     -H 'Accept: application/x-yaml' \
+>     -H 'X-Auth-Token: 097e62c6b81ad08019905f55799971a146b392a9'\
+>     -d client=local \
+>     -d tgt='*' \
+>     -d fun='cmd.run' -d arg='date'
+return:
+- linux-node1.example.com: Mon Oct 23 02:00:16 EDT 2017
+  linux-node2.example.com: Mon Oct 23 02:00:16 EDT 2017
+复制代码
+十四，执行状态模块
+
+复制代码
+[root@linux-node1 master.d]# curl -sSk https://192.168.56.11:8000 \
+>     -H 'Accept: application/x-yaml' \
+>     -H 'X-Auth-Token: 097e62c6b81ad08019905f55799971a146b392a9'\
+>     -d client=local \
+>     -d tgt='*' \
+>     -d fun='state.sls' -d arg='web.lamp'
+return:
+- linux-node1.example.com:
+    cmd_|-apache-auth_|-htpasswd -bc /etc/httpd/conf/htpasswd_file admin admin_|-run:
+      __run_num__: 6
+      changes: {}
+      comment: unless execution succeeded
+      duration: 5.93
+      name: htpasswd -bc /etc/httpd/conf/htpasswd_file admin admin
+      result: true
+      skip_watch: true
+      start_time: '02:03:25.724448'
+    file_|-apache-conf_|-/etc/httpd/conf.d_|-recurse:
+      __run_num__: 4
+      changes: {}
+      comment: The directory /etc/httpd/conf.d is in the correct state
+      duration: 22.914
+      name: /etc/httpd/conf.d
+      result: true
+      start_time: '02:03:25.698432'
+    file_|-apache-config_|-/etc/httpd/conf/httpd.conf_|-managed:
+      __run_num__: 1
+      changes: {}
+      comment: File /etc/httpd/conf/httpd.conf is in the correct state
+      duration: 12.031
+      name: /etc/httpd/conf/httpd.conf
+      result: true
+      start_time: '02:03:25.452497'
+    file_|-php-config_|-/etc/php.ini_|-managed:
+      __run_num__: 2
+      changes: {}
+      comment: File /etc/php.ini is in the correct state
+      duration: 4.087
+      name: /etc/php.ini
+      result: true
+      start_time: '02:03:25.464632'
+    pkg_|-apache-auth_|-httpd-tools_|-installed:
+      __run_num__: 5
+      changes: {}
+      comment: Package httpd-tools is already installed.
+      duration: 0.661
+      name: httpd-tools
+      result: true
+      start_time: '02:03:25.721441'
+    pkg_|-lamp-install_|-lamp-install_|-installed:
+      __run_num__: 0
+      changes: {}
+      comment: All specified packages are already installed.
+      duration: 1109.108
+      name: php
+      result: true
+      start_time: '02:03:24.341037'
+    service_|-lamp-service_|-httpd_|-running:
+      __run_num__: 3
+      changes: {}
+      comment: Service httpd is already enabled, and is in the desired state
+      duration: 228.811
+      name: httpd
+      result: true
+      start_time: '02:03:25.469465'
+  linux-node2.example.com:
+    cmd_|-apache-auth_|-htpasswd -bc /etc/httpd/conf/htpasswd_file admin admin_|-run:
+      __run_num__: 6
+      changes: {}
+      comment: unless execution succeeded
+      duration: 7.081
+      name: htpasswd -bc /etc/httpd/conf/htpasswd_file admin admin
+      result: true
+      skip_watch: true
+      start_time: '02:03:25.790118'
+    file_|-apache-conf_|-/etc/httpd/conf.d_|-recurse:
+      __run_num__: 4
+      changes: {}
+      comment: The directory /etc/httpd/conf.d is in the correct state
+      duration: 25.616
+      name: /etc/httpd/conf.d
+      result: true
+      start_time: '02:03:25.762374'
+    file_|-apache-config_|-/etc/httpd/conf/httpd.conf_|-managed:
+      __run_num__: 1
+      changes: {}
+      comment: File /etc/httpd/conf/httpd.conf is in the correct state
+      duration: 21.026
+      name: /etc/httpd/conf/httpd.conf
+      result: true
+      start_time: '02:03:25.489748'
+    file_|-php-config_|-/etc/php.ini_|-managed:
+      __run_num__: 2
+      changes: {}
+      comment: File /etc/php.ini is in the correct state
+      duration: 5.21
+      name: /etc/php.ini
+      result: true
+      start_time: '02:03:25.510932'
+    pkg_|-apache-auth_|-httpd-tools_|-installed:
+      __run_num__: 5
+      changes: {}
+      comment: Package httpd-tools is already installed.
+      duration: 0.469
+      name: httpd-tools
+      result: true
+      start_time: '02:03:25.788164'
+    pkg_|-lamp-install_|-lamp-install_|-installed:
+      __run_num__: 0
+      changes: {}
+      comment: All specified packages are already installed.
+      duration: 813.972
+      name: php
+      result: true
+      start_time: '02:03:24.672610'
+    service_|-lamp-service_|-httpd_|-running:
+      __run_num__: 3
+      changes: {}
+      comment: Service httpd is already enabled, and is in the desired state
+      duration: 245.069
+      name: httpd
+      result: true
+      start_time: '02:03:25.517134'
+复制代码
+十五，以json格式输出
+复制代码
+[root@linux-node1 master.d]# curl -sSk https://192.168.56.11:8000 \
+>     -H 'Accept: application/json' \
+>     -H 'X-Auth-Token: 097e62c6b81ad08019905f55799971a146b392a9'\
+>     -d client=local \
+>     -d tgt='*' \
+>     -d fun='cmd.run' -d arg='w'
+{"return": [{"linux-node1.example.com": " 02:06:05 up 20:29,  1 user,  load average: 0.00, 0.03, 0.05\nUSER     TTY      FROM   LOGIN@   IDLE   JCPU   PCPU WHAT\nroot  pts/0 
+  192.168.56.1     21:41    5.00s  2.75s  0.10s curl -sSk https://192.168.56.11:8000 -H Accept: application/json 
+-H X-Auth-Token: 097e62c6b81ad08019905f55799971a146b392a9 -d client=local -d tgt=* -d fun=cmd.run -d arg=w", "linux-node2.example.com": " 02:06:06 up 20:29, 
+ 0 users,  load average: 0.02, 0.02, 0.05\nUSER   TTY   FROM  LOGIN@   IDLE   JCPU   PCPU WHAT"}]}
+复制代码
+十六，获取grains信息
+
+复制代码
+[root@linux-node1 master.d]# curl -sSk https://192.168.56.11:8000/minions/linux-node1.example.com \
+>     -H 'Accept: application/x-yaml' \
+>     -H 'X-Auth-Token: bfd71d03c3c933ae3ae496d27fb3a131a748723e'
+return:
+- linux-node1.example.com:
+    SSDs: []
+    biosreleasedate: 07/02/2015
+    biosversion: '6.00'
+    cpu_flags:
+    - fpu
+    - vme
+    - de
+    - pse
+    - tsc
+    - msr
+    - pae
+    - mce
+    - cx8
+    - apic
+    - sep
+    - mtrr
+    - pge
+    - mca
+    - cmov
+    - pat
+    - pse36
+    - clflush
+    - dts
+    - mmx
+    - fxsr
+    - sse
+    - sse2
+    - ss
+    - ht
+    - syscall
+    - nx
+    - pdpe1gb
+    - rdtscp
+    - lm
+    - constant_tsc
+    - arch_perfmon
+    - pebs
+    - bts
+    - nopl
+    - xtopology
+    - tsc_reliable
+    - nonstop_tsc
+    - aperfmperf
+    - eagerfpu
+    - pni
+    - pclmulqdq
+    - ssse3
+    - fma
+    - cx16
+    - pcid
+    - sse4_1
+    - sse4_2
+    - x2apic
+    - movbe
+    - popcnt
+    - tsc_deadline_timer
+    - aes
+    - xsave
+    - avx
+    - f16c
+    - rdrand
+    - hypervisor
+    - lahf_lm
+    - abm
+    - 3dnowprefetch
+    - ida
+    - arat
+    - epb
+    - pln
+    - pts
+    - dtherm
+    - hwp
+    - hwp_noitfy
+    - hwp_act_window
+    - hwp_epp
+    - fsgsbase
+    - tsc_adjust
+    - bmi1
+    - avx2
+    - smep
+    - bmi2
+    - invpcid
+    - rdseed
+    - adx
+    - smap
+    - xsaveopt
+    - xsavec
+    - xgetbv1
+    - xsaves
+    cpu_model: Intel(R) Core(TM) i5-6200U CPU @ 2.30GHz
+    cpuarch: x86_64
+    domain: example.com
+    fqdn: linux-node1.example.com
+    fqdn_ip4:
+    - 192.168.56.11
+    fqdn_ip6: []
+    gpus:
+    - model: SVGA II Adapter
+      vendor: unknown
+    host: linux-node1
+    hwaddr_interfaces:
+      eth0: 00:0c:29:3c:56:22
+      lo: 00:00:00:00:00:00
+    id: linux-node1.example.com
+    init: systemd
+    ip4_interfaces:
+      eth0:
+      - 192.168.56.11
+      lo:
+      - 127.0.0.1
+    ip6_interfaces:
+      eth0:
+      - fe80::20c:29ff:fe3c:5622
+      lo:
+      - ::1
+    ip_interfaces:
+      eth0:
+      - 192.168.56.11
+      - fe80::20c:29ff:fe3c:5622
+      lo:
+      - 127.0.0.1
+      - ::1
+    ipv4:
+    - 127.0.0.1
+    - 192.168.56.11
+    ipv6:
+    - ::1
+    - fe80::20c:29ff:fe3c:5622
+    kernel: Linux
+    kernelrelease: 3.10.0-327.28.2.el7.x86_64
+    locale_info:
+      defaultencoding: UTF-8
+      defaultlanguage: en_US
+      detectedencoding: UTF-8
+    localhost: linux-node1
+    lsb_distrib_id: CentOS Linux
+    machine_id: 14e217a8e7d7475391d62b10129baa2f
+    manufacturer: VMware, Inc.
+    master: 192.168.56.11
+    mdadm: []
+    mem_total: 1823
+    nodename: linux-node1
+    num_cpus: 2
+    num_gpus: 1
+    os: CentOS
+    os_family: RedHat
+    osarch: x86_64
+    oscodename: Core
+    osfinger: CentOS Linux-7
+    osfullname: CentOS Linux
+    osmajorrelease: '7'
+    osrelease: 7.2.1511
+    osrelease_info:
+    - 7
+    - 2
+    - 1511
+    path: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+    productname: VMware Virtual Platform
+    ps: ps -efH
+    pythonexecutable: /usr/bin/python
+    pythonpath:
+    - /usr/bin
+    - /usr/lib64/python27.zip
+    - /usr/lib64/python2.7
+    - /usr/lib64/python2.7/plat-linux2
+    - /usr/lib64/python2.7/lib-tk
+    - /usr/lib64/python2.7/lib-old
+    - /usr/lib64/python2.7/lib-dynload
+    - /usr/lib64/python2.7/site-packages
+    - /usr/lib/python2.7/site-packages
+    pythonversion:
+    - 2
+    - 7
+    - 5
+    - final
+    - 0
+    saltpath: /usr/lib/python2.7/site-packages/salt
+    saltversion: 2015.5.10
+    saltversioninfo:
+    - 2015
+    - 5
+    - 10
+    - 0
+    selinux:
+      enabled: false
+      enforced: Disabled
+    serialnumber: VMware-56 4d 7e 77 4c 73 98 a3-29 27 54 e4 0f 3c 56 22
+    server_id: 1981947194
+    shell: /bin/sh
+    systemd:
+      features: +PAM +AUDIT +SELINUX +IMA -APPARMOR +SMACK +SYSVINIT +UTMP +LIBCRYPTSETUP
+        +GCRYPT +GNUTLS +ACL +XZ -LZ4 -SECCOMP +BLKID +ELFUTILS +KMOD +IDN
+      version: '219'
+    virtual: VMware
+    zmqversion: 3.2.5

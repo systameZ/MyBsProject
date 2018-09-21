@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="right_col" role="main">
+    <div class="">
+        <div class="clearfix"></div>
+        <div class="row">
+            <div class="col-md-12 col-sm-12 col-xs-12">
+                <div class="x_panel">
+                    <div class="x_title">
+                        <h2>添加主控</h2>
+                        <ul class="nav navbar-right panel_toolbox">
+                            <li><a class="collapse-link"><i class="fa fa-chevron-up"></i></a>
+                            </li>
+                        </ul>
+                        <div class="clearfix"></div>
+                    </div>
+                      <div class="x_content">
+                    <br />
+                    <form id="demo-form2" data-parsley-validate class="form-horizontal form-label-left">
+					  {% csrf_token %}
+                      <div class="form-group">
+                        <label class="control-label col-md-3 col-sm-3 col-xs-12" for="first-name">主控地址 <span class="required">*</span>
+                        </label>
+                        <div class="col-md-6 col-sm-6 col-xs-12">
+                          <input type="text" id="master_address" name="master_address" required="required" class="form-control col-md-7 col-xs-12" value="{{posts.master_host}}">
+                        </div>
+                      </div>
+                      <div class="form-group">
+                        <label class="control-label col-md-3 col-sm-3 col-xs-12" for="last-name">主控端口 <span class="required">*</span>
+                        </label>
+                        <div class="col-md-6 col-sm-6 col-xs-12">
+                          <input type="text" id="master_port" name="master_port" required="required" class="form-control col-md-7 col-xs-12" value="{{posts.master_port}}">
+                        </div>
+                      </div>
+					  <div class="form-group">
+                        <label class="control-label col-md-3 col-sm-3 col-xs-12" for="last-name">用户名 <span class="required">*</span>
+                        </label>
+                        <div class="col-md-6 col-sm-6 col-xs-12">
+                          <input type="text" id="master_user" name="master_user" required="required" class="form-control col-md-7 col-xs-12" value="{{posts.master_user}}">
+                        </div>
+                      </div>
+                      <div class="form-group">
+                        <label class="control-label col-md-3 col-sm-3 col-xs-12" for="last-name">密码 <span class="required">*</span>
+                        </label>
+                        <div class="col-md-6 col-sm-6 col-xs-12">
+                          <input type="password" id="master_pwd" name="master_pwd" required="required" class="form-control col-md-7 col-xs-12" value="{{posts.master_pwd}}">
+                        </div>
+                      </div>
+
+                      
+                      <div class="ln_solid"></div>
+                      <div class="form-group">
+                        <div class="col-md-6 col-sm-6 col-xs-12 col-md-offset-3">
+                          <button class="btn btn-primary" type="button">取消</button>
+						  <button id="btnTest" class="btn btn-success" >测试</button>
+						  <!-- primary -->
+                          <button id="btnSub" class="btn btn-success" >保存</button>
+                        </div>
+                      </div>
+
+                    </form>
+                  </div>
+                </div>
+			<div id="modal_show" class="modal fade bs-example-modal-sm" tabindex="-1" role="dialog" aria-hidden="true" style="display: none;">
+                    <div class="modal-dialog modal-sm">
+                      <div class="modal-content">
+
+                        <div class="modal-header">
+                          <button id="close_dialog" type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span>
+                          </button>
+                          <h4 class="modal-title" id="myModalLabel2">Modal title</h4>
+                        </div>
+                        <div id="content_dialog" class="modal-body">
+
+                        </div>
+                        <div class="modal-footer">
+                          <button id="ok_dialog" type="button" class="btn btn-default" data-dismiss="modal">确认</button>
+                        </div>
+
+                      </div>
+                    </div>
+                  </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block js %}
+<script type="text/javascript">
+$(document).ready(
+	function(){
+
+		$.ajaxSetup({
+    		data: {csrfmiddlewaretoken: '{{ csrf_token }}' },
+		});
+
+		function my_get_date(test){
+				result={};
+				if ($('#master_address').val()!=''){
+					result['master_address']=$('#master_address').val();
+				}
+				if ($('#master_port').val()!=''){
+					result['master_port']=$('#master_port').val();
+				}
+				if ($('#master_user').val()!=''){
+					result['master_user']=$('#master_user').val();
+				}
+				if ($('#master_pwd').val()!=''){
+					result['master_pwd']=$('#master_pwd').val();
+				}
+				result['master_test']=test;
+				return result;
+		};
+
+		function reset_input(){
+			$('input').val("");
+			$('input').attr('value','');
+		}
+
+		function show_dialog(tittle,content){
+			$('#modal_show').attr({
+				'class':'modal fade bs-example-modal-sm in',
+				'style':'display:block;padding-right16px',
+			});
+			$('#myModalLabel2').html(tittle);
+			$('#content_dialog').html(content);
+
+		}
+
+		function hide_dialog(){
+			$('#modal_show').attr({
+				'class':'modal fade bs-example-modal-sm ',
+				'style':'display:none;',
+			});
+			$('#myModalLabel2').html("");
+			$('#content_dialog').html("");
+		}
+
+		$('#close_dialog').click(function(){
+			hide_dialog();
+		});
+
+		$('#ok_dialog').click(function(){
+			hide_dialog();
+		});
+
+		$('#btnTest').click(
+			function(e){
+				if (Object.keys(my_get_date()).length==5) {
+						$.ajax({
+						type:'POST',
+						url:"{% url 'master_add' %}",
+						data:my_get_date(true),
+						success:function(results){
+							if(results['status']==700){
+								if(results['data']!=0){
+									show_text='测试成功！结果如下：'+' <br> '
+									result=jQuery.parseJSON(results['data'])
+									for(var i=0;i<3;i++){
+										if (i==result['return'].length-1  && i!=0){
+											break;
+										}else{
+											for (var k in result['return'][i]){
+												show_text+=k+'：'+result['return'][i][k]+'<br>';
+											}
+										}
+									}
+									show_dialog("提示",show_text);
+								}else{
+									show_dialog("提示","测试成功！");
+								}
+							}else{
+								show_dialog("提示","测试失败！");
+							}
+						},
+					});
+				}
+				e.preventDefault();
+		});
+
+		$('#btnSub').click(function(e){
+			if(Object.keys(my_get_date()).length==5){
+					$.ajax({
+					type:'POST',
+					url:"{% url 'master_add' %}",
+					data:my_get_date(false),
+					success:function(results){
+						if (results['status']==800){
+							reset_input();
+							show_dialog("提示","保存成功！");
+						}else{
+							reset_input();
+							show_dialog("提示","保存失败！");
+						}
+					}
+				});
+			}
+			 e.preventDefault();
+		});
+
+});
+</script>
+{% endblock %}
+
+
